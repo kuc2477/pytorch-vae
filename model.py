@@ -17,7 +17,7 @@ class VAE(nn.Module):
         self.encoder = nn.Sequential(
             self._conv(channel_num, kernel_num // 4),
             self._conv(kernel_num // 4, kernel_num // 2),
-            self._conv(kernel_num // 2, kernel_num),
+            self._conv(kernel_num // 2, kernel_num, last=True),
         )
 
         # encoded feature's size and volume
@@ -35,7 +35,7 @@ class VAE(nn.Module):
         self.decoder = nn.Sequential(
             self._deconv(kernel_num, kernel_num // 2),
             self._deconv(kernel_num // 2, kernel_num // 4),
-            self._deconv(kernel_num // 4, channel_num),
+            self._deconv(kernel_num // 4, channel_num, last=True),
             nn.Sigmoid()
         )
 
@@ -79,7 +79,7 @@ class VAE(nn.Module):
         return nn.BCELoss(size_average=False)(x_reconstructed, x) / x.size(0)
 
     def kl_divergence_loss(self, mean, logvar):
-        return ((mean**2 + logvar.exp() - 1 - logvar) / 2).mean()
+        return ((mean**2 + logvar.exp() - 1 - logvar) / 2).sum() / mean.size(0)
 
     # =====
     # Utils
@@ -118,22 +118,24 @@ class VAE(nn.Module):
     # Layers
     # ======
 
-    def _conv(self, channel_size, kernel_num):
-        return nn.Sequential(
-            nn.Conv2d(
+    def _conv(self, channel_size, kernel_num, last=False):
+        conv = nn.Conv2d(
                 channel_size, kernel_num,
-                kernel_size=4, stride=2, padding=1,
-            ),
+                kernel_size=3, stride=2, padding=1,
+        )
+        return conv if last else nn.Sequential(
+            conv,
             nn.BatchNorm2d(kernel_num),
             nn.ReLU(),
         )
 
-    def _deconv(self, channel_num, kernel_num):
-        return nn.Sequential(
-            nn.ConvTranspose2d(
-                channel_num, kernel_num,
-                kernel_size=4, stride=2, padding=1,
-            ),
+    def _deconv(self, channel_num, kernel_num, last=False):
+        deconv = nn.ConvTranspose2d(
+            channel_num, kernel_num,
+            kernel_size=4, stride=2, padding=1,
+        )
+        return deconv if last else nn.Sequential(
+            deconv,
             nn.BatchNorm2d(kernel_num),
             nn.ReLU(),
         )
